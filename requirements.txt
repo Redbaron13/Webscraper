@@ -1,0 +1,13 @@
+# Core dependencies
+python-dotenv
+supabase
+requests
+requests-html
+schedule
+click
+beautifulsoup4
+
+# Utility packages
+python-dateutil
+uuid
+
