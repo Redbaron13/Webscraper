@@ -4,10 +4,13 @@ from dotenv import load_dotenv, find_dotenv, set_key, unset_key
 from logger import regular, maintenance, debug, error as log_error, warning, set_log_level as set_global_log_level
 from utils import parse_times
 
+
 # --- Constants ---
 # Attempt to find .env. If not found, default to creating '.env' in the current working directory.
 # This makes it more robust if the script is run from different subdirectories of a project.
-_ENV_FILE_PATH = find_dotenv(usecwd=True) if find_dotenv(usecwd=True) else os.path.join(os.getcwd(), ".env")
+ENV_FILE = find_dotenv(usecwd=True) if find_dotenv(usecwd=True) else os.path.join(os.getcwd(), ".env")
+ENV_FILE = "Web_scraper/.env" # Keep existing internal reference
+_ENV_FILE_PATH = ENV_FILE
 
 DEFAULT_LOCAL_DB_NAME = "web_scraper_data.db"
 DEFAULT_PRIMARY_TIMES_STR = "08:00,17:00"
@@ -142,7 +145,7 @@ def get_config() -> dict:
 
 def get_env_file_path() -> str:
     """Returns the path to the .env file being used."""
-    return _ENV_FILE_PATH
+    return ENV_FILE  # Use the public constant instead of _ENV_FILE_PATH
 
 # Load configuration when the module is imported for the first time.
 # This makes the config available immediately to other modules.

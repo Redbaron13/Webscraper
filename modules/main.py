@@ -1,17 +1,21 @@
-#main.py
-# htmlscrape
-#Created by Kevin Baron on 5/19/25.
-#Edited Last by Kevin Baron on 5/20/25 @ 00:20:37
-
 import click
 import os
 import time
-from config_manager import get_config, save_config_value, load_config, ENV_FILE, DEFAULT_PRIMARY_TIMES, DEFAULT_BACKUP_TIMES, DEFAULT_LOG_LEVEL
+from config_manager import (
+    get_config,
+    save_config_value,
+    load_config,
+    ENV_FILE,
+    DEFAULT_PRIMARY_TIMES_STR,
+    DEFAULT_BACKUP_TIMES_STR,
+    DEFAULT_LOG_LEVEL_STR,
+)
 from database_manager import initialize_databases, save_scrape_data, close_local_db_connection
 from scraper import fetch_html
 from scheduler import setup_schedules, run_pending_schedules, stop_scheduler_flag
 from logger import regular, maintenance, debug, error as log_error, set_log_level as set_global_log_level, LOG_LEVELS
 from utils import parse_times
+
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
 def cli():
@@ -25,9 +29,9 @@ def cli():
 @click.option('--url', prompt='Supabase Project URL', help='Your Supabase project URL.')
 @click.option('--key', prompt='Supabase Anon Key', help='Your Supabase project anon (public) key.', hide_input=True)
 @click.option('--target-urls', prompt='Target URLs (comma-separated)', help='URLs to scrape.', default="", show_default=False)
-@click.option('--primary-times', prompt='Primary Scrape Times (HH:MM, comma-separated)', default=DEFAULT_PRIMARY_TIMES, help='Times for primary scrapes.')
-@click.option('--backup-times', prompt='Backup Scrape Times (HH:MM, comma-separated)', default=DEFAULT_BACKUP_TIMES, help='Times for backup scrapes.')
-@click.option('--log-level', prompt='Log Level', type=click.Choice(list(LOG_LEVELS.keys()), case_sensitive=False), default=DEFAULT_LOG_LEVEL, help='Set the logging verbosity.')
+@click.option('--primary-times', prompt='Primary Scrape Times (HH:MM, comma-separated)', default=DEFAULT_PRIMARY_TIMES_STR, help='Times for primary scrapes.')
+@click.option('--backup-times', prompt='Backup Scrape Times (HH:MM, comma-separated)', default=DEFAULT_BACKUP_TIMES_STR, help='Times for backup scrapes.')
+@click.option('--log-level', prompt='Log Level', type=click.Choice(list(LOG_LEVELS.keys()), case_sensitive=False), default=DEFAULT_LOG_LEVEL_STR, help='Set the logging verbosity.')
 def setup():
     """Interactively set up Supabase credentials, target URLs, and scrape times."""
     regular("Starting interactive setup...")
@@ -39,18 +43,18 @@ def setup():
     target_urls_str = click.prompt('Target URLs (comma-separated)', default=current_urls)
     save_config_value("TARGET_URLS", target_urls_str)
 
-    current_primary_times = ",".join(get_config().get("SCRAPE_TIMES_PRIMARY", parse_times(DEFAULT_PRIMARY_TIMES)))
+    current_primary_times = ",".join(get_config().get("SCRAPE_TIMES_PRIMARY", parse_times(DEFAULT_PRIMARY_TIMES_STR)))
     primary_times_str = click.prompt('Primary Scrape Times (HH:MM, comma-separated)', default=current_primary_times)
     if not parse_times(primary_times_str): # Validate input
         log_error("Invalid primary time format. Please use HH:MM, comma-separated.")
-        primary_times_str = click.prompt('Re-enter Primary Scrape Times (HH:MM, comma-separated)', default=DEFAULT_PRIMARY_TIMES)
+        primary_times_str = click.prompt('Re-enter Primary Scrape Times (HH:MM, comma-separated)', default=DEFAULT_PRIMARY_TIMES_STR)
     save_config_value("SCRAPE_TIMES_PRIMARY", primary_times_str)
 
-    current_backup_times = ",".join(get_config().get("SCRAPE_TIMES_BACKUP", parse_times(DEFAULT_BACKUP_TIMES)))
+    current_backup_times = ",".join(get_config().get("SCRAPE_TIMES_BACKUP", parse_times(DEFAULT_BACKUP_TIMES_STR)))
     backup_times_str = click.prompt('Backup Scrape Times (HH:MM, comma-separated)', default=current_backup_times)
     if not parse_times(backup_times_str): # Validate input
         log_error("Invalid backup time format. Please use HH:MM, comma-separated.")
-        backup_times_str = click.prompt('Re-enter Backup Scrape Times (HH:MM, comma-separated)', default=DEFAULT_BACKUP_TIMES)
+        backup_times_str = click.prompt('Re-enter Backup Scrape Times (HH:MM, comma-separated)', default=DEFAULT_BACKUP_TIMES_STR)
     save_config_value("SCRAPE_TIMES_BACKUP", backup_times_str)
     
     current_log_level = get_config().get("LOG_LEVEL", DEFAULT_LOG_LEVEL)

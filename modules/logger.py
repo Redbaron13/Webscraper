@@ -4,6 +4,7 @@
 # web_scraper/logger.py
 import datetime
 import traceback
+from config_manager import ENV_FILE
 
 # Define log levels as a dictionary for easy lookup and comparison
 LOG_LEVELS = {

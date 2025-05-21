@@ -4,7 +4,7 @@ import datetime
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
 from postgrest.exceptions import APIError as SupabaseAPIError
-
+from config_manager import ENV_FILE
 
 from logger import regular, maintenance, debug, error as log_error, critical, warning
 from config_manager import get_config, load_config
