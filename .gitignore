@@ -100,3 +100,5 @@ protject.xcworkspace
 *.xcuserstate
 *.xcscheme
 *.pbxproj
+
+*_Store
