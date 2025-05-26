@@ -1,7 +1,7 @@
 #scraper.py htmlscrape
 #Created by Kevin Baron on 5/19/25.
 #Edited Last by Kevin Baron on 5/20/25 @ 00:20:37
-# web_scraper/scraper.py
+# Webscraper/scraper.py
 
 import os
 from dotenv import load_dotenv, find_dotenv, set_key, unset_key
@@ -13,7 +13,7 @@ from utils import parse_times
 # This makes it more robust if the script is run from different subdirectories of a project.
 _ENV_FILE_PATH = find_dotenv(usecwd=True) if find_dotenv(usecwd=True) else os.path.join(os.getcwd(), ".env")
 
-DEFAULT_LOCAL_DB_NAME = "web_scraper_data.db"
+DEFAULT_LOCAL_DB_NAME = "webscraperdata.db"
 DEFAULT_PRIMARY_TIMES_STR = "08:00,17:00"
 DEFAULT_BACKUP_TIMES_STR = "22:00,05:00"
 DEFAULT_LOG_LEVEL_STR = "REGULAR"

@@ -1,4 +1,4 @@
-# web_scraper/config_manager.py
+# webscraper/configmanager.py
 import os
 from dotenv import load_dotenv, find_dotenv, set_key, unset_key
 from logger import regular, maintenance, debug, error as log_error, warning, set_log_level as set_global_log_level
@@ -9,10 +9,10 @@ from utils import parse_times
 # Attempt to find .env. If not found, default to creating '.env' in the current working directory.
 # This makes it more robust if the script is run from different subdirectories of a project.
 ENV_FILE = find_dotenv(usecwd=True) if find_dotenv(usecwd=True) else os.path.join(os.getcwd(), ".env")
-ENV_FILE = "Web_scraper/.env" # Keep existing internal reference
+ENV_FILE = "Webscraper/.env" # Keep existing internal reference
 _ENV_FILE_PATH = ENV_FILE
 
-DEFAULT_LOCAL_DB_NAME = "web_scraper_data.db"
+DEFAULT_LOCAL_DB_NAME = "webscraperdata.db"
 DEFAULT_PRIMARY_TIMES_STR = "08:00,17:00"
 DEFAULT_BACKUP_TIMES_STR = "22:00,05:00"
 DEFAULT_LOG_LEVEL_STR = "REGULAR"

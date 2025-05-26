@@ -1,13 +1,13 @@
 # scheduler.py htmlscrape
 # Created by Kevin Baron on 5/19/25.
 # Edited Last by Kevin Baron on 5/20/25 @ 00:20:37
-# web_scraper/scheduler.py
+# Webscraper/scheduler.py
 import schedule
 import time
 import datetime
 from scraper import fetch_html
-from database_manager import save_scrape_data, close_local_db_connection
-from config_manager import get_config
+from databasemanager import save_scrape_data, close_local_db_connection
+from configmanager import get_config
 from logger import regular, maintenance, debug, error as log_error, critical
 
 # --- Global state for stopping the scheduler ---
@@ -123,7 +123,7 @@ def run_pending_schedules(run_duration_days: int | None = None):
         regular("Local database connection closed by scheduler.")
 
 if __name__ == '__main__':
-    from config_manager import load_config, save_config_value
+    from configmanager import load_config, save_config_value
     from logger import set_log_level
     
     set_log_level("DEBUG")

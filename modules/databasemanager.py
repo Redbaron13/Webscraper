@@ -1,13 +1,13 @@
-# web_scraper/database_manager.py
+# webscraper/databasemanager.py
 import sqlite3
 import datetime
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
 from postgrest.exceptions import APIError as SupabaseAPIError
-from config_manager import ENV_FILE
+from configmanager import ENV_FILE
 
 from logger import regular, maintenance, debug, error as log_error, critical, warning
-from config_manager import get_config, load_config
+from configmanager import get_config, load_config
 from utils import generate_unique_id
 
 # --- Database Schema ---
@@ -255,7 +255,7 @@ if __name__ == '__main__':
     # Example Usage & Testing
     # Ensure you have a .env file with SUPABASE_URL and SUPABASE_KEY for Supabase tests
     # or comment out Supabase related parts if not testing Supabase.
-    # from config_manager import save_config_value # To set up for test
+    # from configmanager import save_config_value # To set up for test
     
     # Load config directly to ensure logger level is set from .env if defined
     load_config() # This will also set the global log level
@@ -263,7 +263,7 @@ if __name__ == '__main__':
     # from logger import set_log_level
     # set_log_level("DEBUG")
 
-    regular("Starting database_manager test script...")
+    regular("Starting databasemanager test script...")
 
     # --- Setup for testing (Optional: configure Supabase via .env) ---
     # print("Simulating .env setup for Supabase (if not already set in your .env):")

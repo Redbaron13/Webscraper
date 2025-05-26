@@ -92,7 +92,7 @@ celerybeat.pid
 # Environments
 .envrc
 .direnv/
-
+# macOS specific files
 protject.xcworkspace
 *.xcworkspace
 *.xcuserdata
@@ -100,5 +100,4 @@ protject.xcworkspace
 *.xcuserstate
 *.xcscheme
 *.pbxproj
-
 *_Store

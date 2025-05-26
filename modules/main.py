@@ -1,7 +1,7 @@
 import click
 import os
 import time
-from config_manager import (
+from configmanager import (
     get_config,
     save_config_value,
     load_config,
@@ -10,7 +10,7 @@ from config_manager import (
     DEFAULT_BACKUP_TIMES_STR,
     DEFAULT_LOG_LEVEL_STR,
 )
-from database_manager import initialize_databases, save_scrape_data, close_local_db_connection
+from databasemanager import initialize_databases, save_scrape_data, close_local_db_connection
 from scraper import fetch_html
 from scheduler import setup_schedules, run_pending_schedules, stop_scheduler_flag
 from logger import regular, maintenance, debug, error as log_error, set_log_level as set_global_log_level, LOG_LEVELS
@@ -140,14 +140,14 @@ def run(duration_days: int | None):
 
     regular("Scheduler is starting. To run in the background, you can use 'screen':")
     regular("  1. Install screen: `sudo apt-get install screen` (or equivalent for your OS)")
-    regular("  2. Create a new screen session: `screen -S web_scraper`")
+    regular("  2. Create a new screen session: `screen -S Webscraper`")
     regular(f"  3. Inside the screen, run this script: `python {os.path.basename(__file__)} run`")
     if duration_days:
         regular(f"     (or `python {os.path.basename(__file__)} run --duration-days {duration_days}`)")
     regular("  4. Detach from screen: Press Ctrl+A then D")
-    regular("  5. To reattach later: `screen -r web_scraper`")
+    regular("  5. To reattach later: `screen -r Webscraper`")
     regular("  6. To list screens: `screen -ls`")
-    regular("  7. To kill a screen session: `screen -X -S web_scraper quit`")
+    regular("  7. To kill a screen session: `screen -X -S Webscraper quit`")
     
     run_pending_schedules(run_duration_days=duration_days)
     regular("Scheduler process finished.")

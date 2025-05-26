@@ -1,7 +1,7 @@
 # utils.py htmlscrape
 # Created by Kevin Baron on 5/19/25.
 # Edited Last by Kevin Baron on 5/20/25 @ 00:20:37
-# web_scraper/utils.py
+# Webscraper/utils.py
 
 import uuid
 from logger import regular, debug, error as log_error # aliased to avoid conflict

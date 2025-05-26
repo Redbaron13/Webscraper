@@ -1,10 +1,10 @@
 # logger.py
 # Created by Kevin Baron on 5/19/25.
 # Edited Last by Kevin Baron on 5/20/25 @ 00:20:37
-# web_scraper/logger.py
+# webscraper/logger.py
 import datetime
 import traceback
-from config_manager import ENV_FILE
+from configmanager import ENV_FILE
 
 # Define log levels as a dictionary for easy lookup and comparison
 LOG_LEVELS = {
