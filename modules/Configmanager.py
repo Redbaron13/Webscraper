@@ -1,4 +1,4 @@
-# webscraper/configmanager.py
+# web_scraper/config_manager.py
 import os
 from dotenv import load_dotenv, find_dotenv, set_key, unset_key
 from logger import regular, maintenance, debug, error as log_error, warning, set_log_level as set_global_log_level
@@ -8,11 +8,12 @@ from utils import parse_times
 # --- Constants ---
 # Attempt to find .env. If not found, default to creating '.env' in the current working directory.
 # This makes it more robust if the script is run from different subdirectories of a project.
-ENV_FILE = find_dotenv(usecwd=True) if find_dotenv(usecwd=True) else os.path.join(os.getcwd(), ".env")
-ENV_FILE = "Webscraper/.env" # Keep existing internal reference
-_ENV_FILE_PATH = ENV_FILE
+_ENV_FILE_PATH = find_dotenv(usecwd=True) if find_dotenv(usecwd=True) else os.path.join(os.getcwd(), ".env")
 
-DEFAULT_LOCAL_DB_NAME = "webscraperdata.db"
+# Public constant for modules importing it (though _ENV_FILE_PATH is used internally for most operations)
+ENV_FILE = _ENV_FILE_PATH
+
+DEFAULT_LOCAL_DB_NAME = "web_scraper_data.db"
 DEFAULT_PRIMARY_TIMES_STR = "08:00,17:00"
 DEFAULT_BACKUP_TIMES_STR = "22:00,05:00"
 DEFAULT_LOG_LEVEL_STR = "REGULAR"
@@ -195,3 +196,4 @@ if __name__ == '__main__':
 
     print("\nConfig manager test complete.")
 
+# This module can be run directly to test the configuration management functionality.
