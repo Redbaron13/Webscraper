@@ -1,19 +1,21 @@
 # webscraper/databasemanager.py
 import sqlite3
 import datetime
+import sqlite3 # Added import
+import datetime # Added import
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
 from postgrest.exceptions import APIError as SupabaseAPIError
-from configmanager import ENV_FILE
+from .configmanager import ENV_FILE # Relative import
 
-from logger import regular, maintenance, debug, error as log_error, critical, warning
-from configmanager import get_config, load_config
-from utils import generate_unique_id
+from .logger import regular, maintenance, debug, error as log_error, critical, warning # Relative import
+from .configmanager import get_config, load_config # Relative import
+from .utils import generate_custom_uuid # Relative import
 
 # --- Database Schema ---
 DB_TABLE_NAME = "scraped_pages" # Use a constant for the table name
 
-# SQLite schema definition
+# SQLite schema definition for scraped_pages
 SQLITE_TABLE_SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS {DB_TABLE_NAME} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,      -- Auto-incrementing ID for local DB
@@ -22,7 +24,19 @@ CREATE TABLE IF NOT EXISTS {DB_TABLE_NAME} (
     scrape_timestamp TEXT NOT NULL,            -- Timestamp of when the scrape occurred (ISO 8601 format)
     scrape_type TEXT NOT NULL,                 -- Type of scrape, e.g., 'primary', 'backup', 'manual'
     html_content TEXT NOT NULL,                -- The full HTML content of the page
+    identical_match INTEGER DEFAULT 0,         -- Flag indicating if this content is identical to the previous scrape for this URL
     version INTEGER DEFAULT 1                  -- Version number for the scrape data structure (future use)
+);
+"""
+
+# Schema for the sequential counters table
+SEQUENTIAL_COUNTERS_TABLE_NAME = "sequential_counters"
+SQLITE_SEQUENTIAL_COUNTERS_SCHEMA = f"""
+CREATE TABLE IF NOT EXISTS {SEQUENTIAL_COUNTERS_TABLE_NAME} (
+    url_code TEXT NOT NULL,
+    prefix_char TEXT NOT NULL,
+    last_sequence INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (url_code, prefix_char)
 );
 """
 # Note: For Supabase (PostgreSQL), the schema is similar but defined in Supabase Studio.
@@ -111,11 +125,17 @@ def initialize_databases():
     if conn:
         try:
             cursor = conn.cursor()
-            cursor.executescript(SQLITE_TABLE_SCHEMA) # Use executescript for multi-statement SQL
-            conn.commit()
+            # Create scraped_pages table
+            cursor.executescript(SQLITE_TABLE_SCHEMA)
             regular(f"SQLite table '{DB_TABLE_NAME}' ensured/created successfully.")
+            
+            # Create sequential_counters table
+            cursor.executescript(SQLITE_SEQUENTIAL_COUNTERS_SCHEMA)
+            regular(f"SQLite table '{SEQUENTIAL_COUNTERS_TABLE_NAME}' ensured/created successfully.")
+            
+            conn.commit()
         except sqlite3.Error as e:
-            log_error(f"Error creating/ensuring SQLite table '{DB_TABLE_NAME}'", error_obj=e)
+            log_error(f"Error creating/ensuring SQLite tables ('{DB_TABLE_NAME}', '{SEQUENTIAL_COUNTERS_TABLE_NAME}')", error_obj=e)
     else:
         log_error("Failed to initialize SQLite database: No connection could be established.")
 
@@ -148,28 +168,88 @@ def initialize_databases():
 
         except SupabaseAPIError as e: # Catch specific Supabase API errors
             if "relation" in str(e).lower() and "does not exist" in str(e).lower():
-                warning(f"Supabase table '{DB_TABLE_NAME}' does not exist. "
-                        f"Please create it via the Supabase dashboard (SQL Editor). "
-                        f"Expected schema elements: id (auto PK), capture_uuid (TEXT/UUID UNIQUE), url (TEXT), "
-                        f"scrape_timestamp (TIMESTAMPTZ), scrape_type (TEXT), html_content (TEXT), version (INTEGER).")
+                warning(
+                    f"Supabase table '{DB_TABLE_NAME}' or '{SEQUENTIAL_COUNTERS_TABLE_NAME}' may not exist. "
+                    f"Please create them via the Supabase dashboard (SQL Editor). "
+                    f"Expected schema for '{DB_TABLE_NAME}': id (auto PK), capture_uuid (TEXT/UUID UNIQUE), url (TEXT), "
+                    f"scrape_timestamp (TIMESTAMPTZ), scrape_type (TEXT), html_content (TEXT), "
+                    f"identical_match (INTEGER), version (INTEGER)."
+                    f"Expected schema for '{SEQUENTIAL_COUNTERS_TABLE_NAME}': url_code (TEXT), prefix_char (TEXT), "
+                    f"last_sequence (INTEGER), PRIMARY KEY (url_code, prefix_char)."
+                )
             else:
-                log_error(f"Supabase API error while checking table '{DB_TABLE_NAME}'. Ensure it's created and accessible.", error_obj=e)
+                log_error(f"Supabase API error while checking tables. Ensure they are created and accessible.", error_obj=e)
         except Exception as e:
-            log_error(f"Unexpected error while checking Supabase table '{DB_TABLE_NAME}'.", error_obj=e)
+            log_error(f"Unexpected error while checking Supabase tables.", error_obj=e)
     else:
         debug("Supabase not configured. Skipping Supabase table check.")
     
     maintenance("Database initialization/verification process complete.")
 
 
-def save_scrape_data(url: str, html_content: str, scrape_type: str, version: int = 1) -> str | None:
+def get_next_sequence(url_code: str, prefix_char: str) -> int | None:
+    """
+    Retrieves and increments the sequence number for a given url_code and prefix_char.
+    Initializes the sequence to 1 if no counter exists.
+    """
+    conn = get_local_db_connection()
+    if not conn:
+        log_error("Cannot get next sequence: No database connection.")
+        return None
+    
+    cursor = conn.cursor()
+    try:
+        # Try to update existing counter
+        cursor.execute(f"""
+            UPDATE {SEQUENTIAL_COUNTERS_TABLE_NAME}
+            SET last_sequence = last_sequence + 1
+            WHERE url_code = ? AND prefix_char = ?
+        """, (url_code, prefix_char))
+        
+        if cursor.rowcount == 0:
+            # No existing counter, insert new one with sequence 1
+            cursor.execute(f"""
+                INSERT INTO {SEQUENTIAL_COUNTERS_TABLE_NAME} (url_code, prefix_char, last_sequence)
+                VALUES (?, ?, 1)
+            """, (url_code, prefix_char))
+            conn.commit()
+            debug(f"Initialized sequence for ({url_code}, {prefix_char}) to 1.")
+            return 1
+        else:
+            # Counter was updated, now fetch the new value
+            cursor.execute(f"""
+                SELECT last_sequence FROM {SEQUENTIAL_COUNTERS_TABLE_NAME}
+                WHERE url_code = ? AND prefix_char = ?
+            """, (url_code, prefix_char))
+            row = cursor.fetchone()
+            conn.commit() # Commit after successful update and select
+            if row:
+                new_sequence = row['last_sequence']
+                debug(f"Incremented sequence for ({url_code}, {prefix_char}) to {new_sequence}.")
+                return new_sequence
+            else:
+                # This case should ideally not be reached if update or insert was successful
+                log_error(f"Failed to retrieve sequence for ({url_code}, {prefix_char}) after update/insert.")
+                conn.rollback() # Rollback as something unexpected happened
+                return None
+    except sqlite3.Error as e:
+        log_error(f"Database error in get_next_sequence for ({url_code}, {prefix_char})", error_obj=e)
+        if conn: # Ensure conn is not None before trying to rollback
+            conn.rollback()
+        return None
+
+def save_scrape_data(url: str, html_content: str, scrape_type: str, prefix_char: str, run_number_str: str, version: int = 1) -> str | None:
     """
     Saves the scraped HTML data to both SQLite and Supabase (if configured).
+    Generates a custom UUID for the scrape event.
+    Checks for identical HTML content against previous scrapes for the same URL.
 
     Args:
         url (str): The URL that was scraped.
         html_content (str): The HTML content of the page.
         scrape_type (str): 'primary', 'backup', or 'manual'.
+        prefix_char (str): Character prefix for UUID (P, B, T, M).
+        run_number_str (str): Two-digit run number string for UUID.
         version (int): Version number for this data structure.
 
     Returns:
@@ -179,10 +259,33 @@ def save_scrape_data(url: str, html_content: str, scrape_type: str, version: int
         log_error(f"No HTML content provided for URL: {url}. Skipping save operation.")
         return None
 
-    capture_id = generate_unique_id() # Generate a unique ID for this capture
-    # Use UTC for timestamps to avoid timezone issues, store as ISO 8601 string.
+    # Generate Custom UUID
+    capture_id = generate_custom_uuid(prefix_char, run_number_str, url, get_next_sequence)
+    if capture_id is None:
+        log_error(f"Failed to generate custom UUID for URL: {url}. Skipping save operation.")
+        return None
+
     timestamp_utc = datetime.datetime.now(datetime.timezone.utc)
     timestamp_iso = timestamp_utc.isoformat()
+
+    # Check for identical HTML content
+    conn = get_local_db_connection() # Ensure connection is established for this check
+    identical_match_value = 0
+    if conn:
+        try:
+            cursor_check = conn.cursor()
+            # Check against the most recent entry for the same URL if performance is a concern
+            # For absolute certainty against any past identical match:
+            cursor_check.execute(f"SELECT 1 FROM {DB_TABLE_NAME} WHERE url = ? AND html_content = ? LIMIT 1", (url, html_content))
+            if cursor_check.fetchone():
+                identical_match_value = 1
+                debug(f"Identical HTML content found for {url}. Flagging as identical_match=1.")
+        except sqlite3.Error as e:
+            log_error(f"Error checking for identical HTML for {url}. Defaulting identical_match to 0.", error_obj=e)
+            # Proceed with saving, but identical_match might be inaccurate if this check fails often.
+    else:
+        log_error("No SQLite connection for identical HTML check. Defaulting identical_match to 0.")
+
 
     data_to_insert = {
         "capture_uuid": capture_id,
@@ -190,27 +293,28 @@ def save_scrape_data(url: str, html_content: str, scrape_type: str, version: int
         "scrape_timestamp": timestamp_iso,
         "scrape_type": scrape_type,
         "html_content": html_content,
+        "identical_match": identical_match_value,
         "version": version
     }
     
-    maintenance(f"Preparing to save scrape data for {url} (Capture UUID: {capture_id}, Type: {scrape_type})")
+    maintenance(f"Preparing to save scrape data for {url} (Capture UUID: {capture_id}, Type: {scrape_type}, Identical: {identical_match_value})")
     saved_locally = False
     saved_to_supabase = False
 
     # Save to SQLite
-    conn = get_local_db_connection()
+    # conn is already obtained for identical_match_value check
     if conn:
         try:
             cursor = conn.cursor()
             cursor.execute(f"""
-                INSERT INTO {DB_TABLE_NAME} (capture_uuid, url, scrape_timestamp, scrape_type, html_content, version)
-                VALUES (:capture_uuid, :url, :scrape_timestamp, :scrape_type, :html_content, :version)
-            """, data_to_insert) # Using named placeholders
+                INSERT INTO {DB_TABLE_NAME} (capture_uuid, url, scrape_timestamp, scrape_type, html_content, identical_match, version)
+                VALUES (:capture_uuid, :url, :scrape_timestamp, :scrape_type, :html_content, :identical_match, :version)
+            """, data_to_insert)
             conn.commit()
-            regular(f"Successfully saved scrape for {url} to SQLite. Rows affected: {cursor.rowcount}")
+            regular(f"Successfully saved scrape for {url} to SQLite. Rows affected: {cursor.rowcount}. UUID: {capture_id}")
             saved_locally = True
         except sqlite3.IntegrityError as e: # E.g. UNIQUE constraint failed for capture_uuid
-            log_error(f"SQLite IntegrityError for {url} (UUID: {capture_id}). This should not happen with UUIDs.", error_obj=e)
+            log_error(f"SQLite IntegrityError for {url} (UUID: {capture_id}). This should not happen with custom UUIDs if sequences are unique.", error_obj=e)
         except sqlite3.Error as e:
             log_error(f"Error saving scrape for {url} to SQLite", error_obj=e)
     else:
@@ -255,55 +359,134 @@ if __name__ == '__main__':
     # Example Usage & Testing
     # Ensure you have a .env file with SUPABASE_URL and SUPABASE_KEY for Supabase tests
     # or comment out Supabase related parts if not testing Supabase.
-    # from configmanager import save_config_value # To set up for test
+    # The following code was used for testing databasemanager.py directly.
+    # It has been commented out as it's for development/testing purposes only.
+    # To re-enable, ensure necessary imports and configurations are active.
+
+    # load_config() 
+    # from .logger import set_log_level 
+    # set_log_level("DEBUG") 
+
+    # regular("Starting databasemanager test script...")
     
-    # Load config directly to ensure logger level is set from .env if defined
-    load_config() # This will also set the global log level
-    # If you want to override for testing:
-    # from logger import set_log_level
-    # set_log_level("DEBUG")
-
-    regular("Starting databasemanager test script...")
-
-    # --- Setup for testing (Optional: configure Supabase via .env) ---
-    # print("Simulating .env setup for Supabase (if not already set in your .env):")
-    # config = get_config()
-    # if not config.get("SUPABASE_URL"):
-    #     print("WARNING: SUPABASE_URL not set. Supabase tests will be skipped or may fail.")
-    # if not config.get("SUPABASE_KEY"):
-    #     print("WARNING: SUPABASE_KEY not set. Supabase tests will be skipped or may fail.")
+    # # --- DB Reset Logic for Testing ---
+    # import os
+    # config_values = get_config()
+    # db_path_for_test = config_values.get("LOCAL_DB_PATH", "web_scraper_data.db") 
     
-    print("\n--- Initializing Databases (creates tables if they don't exist) ---")
-    initialize_databases()
-
-    print("\n--- Testing Save Operation ---")
-    test_url_1 = "http://example.com/testpage1"
-    test_html_1 = "<html><body><h1>Test HTML 1</h1><p>This is a primary test.</p></body></html>"
+    # close_local_db_connection() 
     
-    capture_uuid_1 = save_scrape_data(test_url_1, test_html_1, "primary", version=1)
-    if capture_uuid_1:
-        print(f"Save operation for {test_url_1} reported success with UUID: {capture_uuid_1}")
-    else:
-        print(f"Save operation for {test_url_1} failed or did not save to any database.")
+    # if os.path.exists(db_path_for_test):
+    #     try:
+    #         os.remove(db_path_for_test)
+    #         maintenance(f"TESTING: Removed existing database file: {db_path_for_test}")
+    #     except OSError as e:
+    #         critical(f"TESTING: Error removing database file {db_path_for_test}: {e}. Tests might be affected.", error_obj=e)
+    # # --- End DB Reset Logic ---
 
-    test_url_2 = "http://example.com/testpage2"
-    test_html_2 = "<html><body><h1>Test HTML 2</h1><p>This is a backup test. Version 2.</p></body></html>"
-    capture_uuid_2 = save_scrape_data(test_url_2, test_html_2, "backup", version=2)
-    if capture_uuid_2:
-        print(f"Save operation for {test_url_2} reported success with UUID: {capture_uuid_2}")
-    else:
-        print(f"Save operation for {test_url_2} failed or did not save to any database.")
+    # print("\n--- Initializing Databases (creates tables if they don't exist) ---")
+    # initialize_databases()
 
-    print("\n--- Testing Save Operation with Empty HTML (should be skipped) ---")
-    test_url_empty = "http://empty.example.com/page"
-    capture_uuid_empty = save_scrape_data(test_url_empty, "", "primary")
-    if capture_uuid_empty:
-        print(f"ERROR: Save operation for empty HTML for {test_url_empty} unexpectedly returned a UUID: {capture_uuid_empty}")
-    else:
-        print(f"Correctly skipped save for empty HTML for {test_url_empty}.")
+    # # --- Test get_next_sequence ---
+    # print("\n--- Testing get_next_sequence ---")
+    # url_code_test_A = "TA" 
+    # prefix_char_P = "P"    
+    # prefix_char_B = "B"    
 
+    # seq1_A_P = get_next_sequence(url_code_test_A, prefix_char_P)
+    # print(f"Seq for ({url_code_test_A}, {prefix_char_P}): {seq1_A_P}") 
+    # assert seq1_A_P == 1, f"Expected 1, got {seq1_A_P}"
+    
+    # seq2_A_P = get_next_sequence(url_code_test_A, prefix_char_P)
+    # print(f"Seq for ({url_code_test_A}, {prefix_char_P}): {seq2_A_P}") 
+    # assert seq2_A_P == 2, f"Expected 2, got {seq2_A_P}"
+    
+    # seq1_A_B = get_next_sequence(url_code_test_A, prefix_char_B)
+    # print(f"Seq for ({url_code_test_A}, {prefix_char_B}): {seq1_A_B}") 
+    # assert seq1_A_B == 1, f"Expected 1, got {seq1_A_B}"
+    
+    # url_code_test_B = "TB" 
+    # seq1_B_P = get_next_sequence(url_code_test_B, prefix_char_P)
+    # print(f"Seq for ({url_code_test_B}, {prefix_char_P}): {seq1_B_P}") 
+    # assert seq1_B_P == 1, f"Expected 1, got {seq1_B_P}"
 
-    print("\n--- Verifying SQLite Data (Manual Query) ---")
+    # print("\n--- Testing Save Operation (with custom UUIDs and identical_match) ---")
+    # test_url_1 = "http://example.com/dbm_testpage1_final_cleanup" 
+    # test_html_content_1 = "<html><body><h1>Test HTML for dbm_testpage1_final_cleanup</h1><p>First version.</p></body></html>"
+    # test_html_content_1_variant = "<html><body><h1>Test HTML for dbm_testpage1_final_cleanup</h1><p>Slightly different.</p></body></html>"
+
+    # print(f"\nSaving first version of {test_url_1}...")
+    # capture_uuid_1 = save_scrape_data(test_url_1, test_html_content_1, "primary", "P", "01", version=1)
+    # if capture_uuid_1:
+    #     print(f"Save 1 for {test_url_1} (UUID: {capture_uuid_1}) - Expect identical_match=0")
+    # else:
+    #     print(f"Save 1 for {test_url_1} FAILED.")
+    # assert capture_uuid_1 is not None
+
+    # print(f"\nSaving IDENTICAL second version of {test_url_1}...")
+    # capture_uuid_2 = save_scrape_data(test_url_1, test_html_content_1, "primary", "P", "02", version=1)
+    # if capture_uuid_2:
+    #     print(f"Save 2 for {test_url_1} (UUID: {capture_uuid_2}) - Expect identical_match=1")
+    # else:
+    #     print(f"Save 2 for {test_url_1} FAILED.")
+    # assert capture_uuid_2 is not None
+
+    # print(f"\nSaving DIFFERENT third version of {test_url_1}...")
+    # capture_uuid_3 = save_scrape_data(test_url_1, test_html_content_1_variant, "primary", "P", "03", version=1)
+    # if capture_uuid_3:
+    #     print(f"Save 3 for {test_url_1} (UUID: {capture_uuid_3}) - Expect identical_match=0")
+    # else:
+    #     print(f"Save 3 for {test_url_1} FAILED.")
+    # assert capture_uuid_3 is not None
+
+    # test_url_2 = "http://example.com/dbm_testpage2_final_cleanup" 
+    # test_html_content_2 = "<html><body><h1>Test HTML for dbm_testpage2_final_cleanup</h1></body></html>"
+    # print(f"\nSaving first version of {test_url_2}...")
+    # capture_uuid_4 = save_scrape_data(test_url_2, test_html_content_2, "backup", "B", "01", version=2)
+    # if capture_uuid_4:
+    #     print(f"Save 1 for {test_url_2} (UUID: {capture_uuid_4}) - Expect identical_match=0")
+    # else:
+    #     print(f"Save 1 for {test_url_2} FAILED.")
+    # assert capture_uuid_4 is not None
+
+    # print("\n--- Testing Save Operation with Empty HTML (should be skipped) ---")
+    # test_url_empty = "http://empty.example.com/dbm_empty_page_final_cleanup"
+    # capture_uuid_empty = save_scrape_data(test_url_empty, "", "primary", "P", "04")
+    # if capture_uuid_empty:
+    #     print(f"ERROR: Save operation for empty HTML for {test_url_empty} unexpectedly returned a UUID: {capture_uuid_empty}")
+    # else:
+    #     print(f"Correctly skipped save for empty HTML for {test_url_empty}.")
+    # assert capture_uuid_empty is None
+
+    # print("\n--- Verifying SQLite Data (Manual Query) ---")
+    # conn = get_local_db_connection()
+    # if conn:
+    #     try:
+    #         cursor = conn.cursor()
+    #         cursor.execute(f"SELECT capture_uuid, url, scrape_type, identical_match, version, scrape_timestamp FROM {DB_TABLE_NAME} ORDER BY id DESC LIMIT 5")
+    #         rows = cursor.fetchall()
+    #         if rows:
+    #             print(f"Found {len(rows)} recent rows in SQLite table '{DB_TABLE_NAME}':")
+    #             for row_idx, row_data in enumerate(rows):
+    #                 print(f"  Row {row_idx + 1}: UUID: {row_data['capture_uuid']}, URL: {row_data['url']}, Type: {row_data['scrape_type']}, Identical: {row_data['identical_match']}, Version: {row_data['version']}, Timestamp: {row_data['scrape_timestamp']}")
+    #         else:
+    #             print(f"No rows found in SQLite table '{DB_TABLE_NAME}'.")
+    #     except sqlite3.Error as e:
+    #         log_error("Error querying SQLite for verification", error_obj=e)
+    # else:
+    #     print("Could not connect to SQLite to verify data.")
+
+    # print("\n--- Supabase Data Verification ---")
+    # print("If Supabase is configured, please check your Supabase project dashboard.")
+    # sb_client_check = get_supabase_client()
+    # if sb_client_check:
+    #     print("Supabase client is configured. Manual verification in Supabase Studio is recommended.")
+    # else:
+    #     print("Supabase client is NOT configured. Supabase saves were skipped.")
+    
+    # close_local_db_connection()
+    
+    print("\nDatabase manager test script (main block commented out).")
     conn = get_local_db_connection()
     if conn:
         try:

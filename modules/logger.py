@@ -4,7 +4,7 @@
 # webscraper/logger.py
 import datetime
 import traceback
-from configmanager import ENV_FILE
+# from configmanager import ENV_FILE # Removed to break circular import
 
 # Define log levels as a dictionary for easy lookup and comparison
 LOG_LEVELS = {
