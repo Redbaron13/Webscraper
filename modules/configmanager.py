@@ -1,9 +1,42 @@
 # web_scraper/config_manager.py
 import os
+import json
+import random
+import string
 from dotenv import load_dotenv, find_dotenv, set_key, unset_key
-from logger import regular, maintenance, debug, error as log_error, warning, set_log_level as set_global_log_level
-from utils import parse_times
+from .logger import regular, maintenance, debug, error as log_error, warning, set_log_level as set_global_log_level
 
+# --- Utility function moved here from utils.py to break circular import ---
+def parse_times(time_str: str) -> list:
+    """
+    Parses a comma-separated string of HH:MM times into a list.
+    Returns empty list if input is invalid or empty.
+    """
+    if not time_str:
+        return []
+    try:
+        times = [t.strip() for t in time_str.split(',') if t.strip()]
+        # Basic validation for HH:MM format
+        for t in times:
+            if not (len(t) == 5 and t[2] == ':' and t[0:2].isdigit() and t[3:5].isdigit()):
+                raise ValueError(f"Invalid time format: {t}")
+            hour, minute = int(t[0:2]), int(t[3:5])
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                raise ValueError(f"Invalid time value: {t}")
+        return times
+    except ValueError as e:
+        # Use logger if available, otherwise print (during early init)
+        try:
+            log_error(f"Error parsing time string '{time_str}': {e}", error_obj=e)
+        except NameError: # If logger not yet fully initialized
+            print(f"Error parsing time string '{time_str}': {e}")
+        return []
+    except Exception as e:
+        try:
+            log_error(f"Unexpected error parsing time string '{time_str}': {e}", error_obj=e)
+        except NameError:
+             print(f"Unexpected error parsing time string '{time_str}': {e}")
+        return []
 
 # --- Constants ---
 # Attempt to find .env. If not found, default to creating '.env' in the current working directory.
@@ -28,6 +61,8 @@ CONFIG = {
     "SCRAPE_TIMES_PRIMARY": [], # List of "HH:MM" strings
     "SCRAPE_TIMES_BACKUP": [],  # List of "HH:MM" strings
     "LOCAL_DB_PATH": DEFAULT_LOCAL_DB_NAME,
+    "URL_CODES": {},  # Stores URL to two-letter code mappings
+    "LAST_MANUAL_PREFIX": "M", # Default so first manual run uses 'T'
     "LOG_LEVEL": DEFAULT_LOG_LEVEL_STR
 }
 
@@ -71,13 +106,24 @@ def load_config() -> dict:
     CONFIG["TARGET_URLS"] = [url.strip() for url in target_urls_str.split(',') if url.strip()]
     
     primary_times_str = os.getenv("SCRAPE_TIMES_PRIMARY", DEFAULT_PRIMARY_TIMES_STR)
-    CONFIG["SCRAPE_TIMES_PRIMARY"] = parse_times(primary_times_str)
+    CONFIG["SCRAPE_TIMES_PRIMARY"] = parse_times(primary_times_str) # parse_times is now local
 
     backup_times_str = os.getenv("SCRAPE_TIMES_BACKUP", DEFAULT_BACKUP_TIMES_STR)
-    CONFIG["SCRAPE_TIMES_BACKUP"] = parse_times(backup_times_str)
+    CONFIG["SCRAPE_TIMES_BACKUP"] = parse_times(backup_times_str) # parse_times is now local
     
     CONFIG["LOCAL_DB_PATH"] = os.getenv("LOCAL_DB_PATH", DEFAULT_LOCAL_DB_NAME)
     CONFIG["LOG_LEVEL"] = os.getenv("LOG_LEVEL", DEFAULT_LOG_LEVEL_STR).upper()
+    CONFIG["LAST_MANUAL_PREFIX"] = os.getenv("LAST_MANUAL_PREFIX", "M") # Load from .env, default to "M"
+
+    url_codes_str = os.getenv("URL_CODES", "{}") # Default to an empty JSON object string
+    try:
+        CONFIG["URL_CODES"] = json.loads(url_codes_str)
+        if not isinstance(CONFIG["URL_CODES"], dict):
+            warning(f"URL_CODES from .env is not a valid JSON object (dictionary). Using empty default. Found: {url_codes_str}")
+            CONFIG["URL_CODES"] = {}
+    except json.JSONDecodeError:
+        warning(f"Failed to parse URL_CODES from .env as JSON. Using empty default. Found: {url_codes_str}")
+        CONFIG["URL_CODES"] = {}
 
     # Apply the loaded log level to the global logger settings
     set_global_log_level(CONFIG["LOG_LEVEL"])
@@ -107,22 +153,41 @@ def save_config_value(key: str, value: str | None):
     
     key_upper = key.upper()
 
-    if value is None:
-        # Remove the key from .env file and update in-memory config
+    if key_upper == "URL_CODES":
+        if isinstance(value, dict):
+            set_key(_ENV_FILE_PATH, key_upper, json.dumps(value))
+            regular(f"Saved {key_upper} as JSON string to .env file.")
+        elif value is None:
+            unset_key(_ENV_FILE_PATH, key_upper)
+            CONFIG[key_upper] = {} # Reset in-memory
+            regular(f"Removed {key_upper} from .env file.")
+        else:
+            log_error(f"Failed to save {key_upper}: value must be a dictionary or None.")
+            return
+    elif value is None:
+        # Remove the key from .env file
         unset_key(_ENV_FILE_PATH, key_upper)
-        regular(f"Removed {key_upper} from .env file.")
-        # Reset to default or empty for in-memory representation
+        # Also remove from current os.environ if it exists, so load_dotenv doesn't see stale value
+        if key_upper in os.environ:
+            del os.environ[key_upper]
+        regular(f"Removed {key_upper} from .env file and active environment variables.")
+        
+        # Reset to default or empty for in-memory representation.
+        # load_config() will be called shortly and will establish the definitive state
+        # based on the (now modified) .env and cleaned os.environ.
+        # parse_times is now local
         if key_upper == "TARGET_URLS": CONFIG[key_upper] = []
         elif key_upper == "SCRAPE_TIMES_PRIMARY": CONFIG[key_upper] = parse_times(DEFAULT_PRIMARY_TIMES_STR)
         elif key_upper == "SCRAPE_TIMES_BACKUP": CONFIG[key_upper] = parse_times(DEFAULT_BACKUP_TIMES_STR)
         elif key_upper == "LOG_LEVEL": CONFIG[key_upper] = DEFAULT_LOG_LEVEL_STR
         elif key_upper == "LOCAL_DB_PATH": CONFIG[key_upper] = DEFAULT_LOCAL_DB_NAME
+        elif key_upper == "LAST_MANUAL_PREFIX": CONFIG[key_upper] = "M" # Reset to default
         else: CONFIG[key_upper] = None
     else:
         # Save the key-value pair to the .env file
         # set_key will create the file if it doesn't exist, or update the key if it does.
-        set_key(_ENV_FILE_PATH, key_upper, value)
-        regular(f"Saved {key_upper}='{value if key_upper != 'SUPABASE_KEY' else '********'}' to .env file.")
+        set_key(_ENV_FILE_PATH, key_upper, str(value)) # Ensure value is string for other keys
+        regular(f"Saved {key_upper}='{str(value) if key_upper != 'SUPABASE_KEY' else '********'}' to .env file.")
     
     # After saving to .env, reload the entire config to ensure consistency
     # and to correctly parse complex types like lists of times or URLs.
@@ -151,6 +216,60 @@ def get_env_file_path() -> str:
 # Load configuration when the module is imported for the first time.
 # This makes the config available immediately to other modules.
 load_config()
+
+_MAX_CODE_GENERATION_ATTEMPTS = 1000 # To prevent infinite loops
+
+def get_or_assign_url_code(url: str) -> str | None:
+    """
+    Retrieves the two-letter code for a URL. If not found, generates a new one,
+    saves it to the .env file, and updates the in-memory config.
+    Returns the code, or None if a new code cannot be generated.
+    """
+    global CONFIG
+    if not url:
+        log_error("Cannot get or assign code for an empty URL.")
+        return None
+
+    # Ensure URL_CODES is loaded and is a dictionary
+    if "URL_CODES" not in CONFIG or not isinstance(CONFIG["URL_CODES"], dict):
+        warning("URL_CODES configuration is missing or invalid. Attempting to reload.")
+        load_config() # Try to reload/initialize it
+        if "URL_CODES" not in CONFIG or not isinstance(CONFIG["URL_CODES"], dict):
+            log_error("URL_CODES configuration remains invalid after reload. Cannot assign URL code.")
+            CONFIG["URL_CODES"] = {} # Reset to empty dict to avoid repeated errors on this call
+
+    # Check if URL already has a code
+    if url in CONFIG["URL_CODES"]:
+        return CONFIG["URL_CODES"][url]
+
+    # Generate a new unique two-letter code
+    existing_codes = set(CONFIG["URL_CODES"].values())
+    new_code = None
+    for attempt in range(_MAX_CODE_GENERATION_ATTEMPTS):
+        code = ''.join(random.choices(string.ascii_uppercase, k=2))
+        if code not in existing_codes:
+            new_code = code
+            break
+    
+    if new_code is None:
+        log_error(f"Failed to generate a unique two-letter code for URL: {url} after {_MAX_CODE_GENERATION_ATTEMPTS} attempts.")
+        return None
+
+    # Assign new code and save
+    # Create a new dictionary for URL_CODES to ensure we are not modifying a shared mutable object directly
+    # before it's correctly processed by save_config_value.
+    updated_url_codes = CONFIG["URL_CODES"].copy()
+    updated_url_codes[url] = new_code
+    
+    # Call save_config_value with the entire updated dictionary.
+    # save_config_value will handle json.dumps for "URL_CODES".
+    save_config_value("URL_CODES", updated_url_codes) 
+
+    # After save_config_value, CONFIG["URL_CODES"] is updated by load_config()
+    # so new_code should be accessible via CONFIG["URL_CODES"][url]
+    # However, it's safer to return the new_code directly as it was generated.
+    maintenance(f"Assigned new code '{new_code}' for URL '{url}'. Configuration updated.")
+    return new_code
 
 if __name__ == '__main__':
     # Example Usage and Demonstration
@@ -193,6 +312,9 @@ if __name__ == '__main__':
     final_config = get_config()
     for k, v in final_config.items():
         print(f"  {k}: {v}")
+    
+    # --- Test calls for get_or_assign_url_code were here during development ---
+    # --- They have been removed after confirming functionality.          ---
 
     print("\nConfig manager test complete.")
 

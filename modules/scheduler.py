@@ -19,16 +19,22 @@ def stop_scheduler_flag():
     _stop_scheduler = True
     regular("Scheduler stop request received. Will stop after current job cycle if running.")
 
-def perform_scrape(url: str, scrape_type: str):
+def perform_scrape(url: str, scrape_type: str, run_index: int):
     """
     Fetches HTML for a given URL and saves it to the databases.
     This is the job function that will be scheduled.
     """
-    maintenance(f"Scheduler: Starting {scrape_type} scrape for {url} at {datetime.datetime.now()}")
+    maintenance(f"Scheduler: Starting {scrape_type} scrape for {url} at {datetime.datetime.now()} (Run index: {run_index})")
+    
+    prefix_char = 'P' if scrape_type == 'primary' else 'B'
+    # run_index is 0-based, UUID run_number should be 1-based (01-09)
+    run_number_str = f"{run_index + 1:02d}" 
+
     html_content = fetch_html(url)
     if html_content:
-        save_scrape_data(url, html_content, scrape_type)
-        regular(f"Scheduler: Completed {scrape_type} scrape for {url}")
+        # Pass prefix_char and run_number_str to save_scrape_data
+        save_scrape_data(url, html_content, scrape_type, prefix_char, run_number_str)
+        regular(f"Scheduler: Completed {scrape_type} scrape for {url} (UUID: {prefix_char}{run_number_str}...)")
     else:
         log_error(f"Scheduler: Failed to fetch HTML for {url} during {scrape_type} scrape.")
 
@@ -52,17 +58,23 @@ def setup_schedules():
             log_error(f"Invalid URL format (missing http/https): {url}. Skipping this URL for scheduling.")
             continue
 
-        for t in primary_times:
+        for idx, t in enumerate(primary_times):
             try:
-                schedule.every().day.at(t).do(perform_scrape, url=url, scrape_type="primary")
-                maintenance(f"Scheduled PRIMARY scrape for {url} at {t}")
+                if idx >= 9: 
+                    warning(f"Too many primary times specified for {url}. Only first 9 will get unique run numbers (01-09). Skipping time: {t}")
+                    continue
+                schedule.every().day.at(t).do(perform_scrape, url=url, scrape_type="primary", run_index=idx)
+                maintenance(f"Scheduled PRIMARY scrape for {url} at {t} with run_index {idx}")
             except Exception as e: # Catches errors from schedule.every().day.at(t) e.g. invalid time format
                 log_error(f"Failed to schedule PRIMARY scrape for {url} at {t}", error_obj=e)
         
-        for t in backup_times:
+        for idx, t in enumerate(backup_times):
             try:
-                schedule.every().day.at(t).do(perform_scrape, url=url, scrape_type="backup")
-                maintenance(f"Scheduled BACKUP scrape for {url} at {t}")
+                if idx >= 9:
+                    warning(f"Too many backup times specified for {url}. Only first 9 will get unique run numbers (01-09). Skipping time: {t}")
+                    continue
+                schedule.every().day.at(t).do(perform_scrape, url=url, scrape_type="backup", run_index=idx)
+                maintenance(f"Scheduled BACKUP scrape for {url} at {t} with run_index {idx}")
             except Exception as e:
                 log_error(f"Failed to schedule BACKUP scrape for {url} at {t}", error_obj=e)
     
@@ -161,7 +173,9 @@ if __name__ == '__main__':
             # Instead of scheduling for a specific time for a short test,
             # we can just call the job directly for testing the perform_scrape function.
             print(f"Manually triggering 'perform_scrape' for {test_url} for testing purposes...")
-            perform_scrape(url=test_url, scrape_type="test_manual_trigger")
+            # For scheduler's perform_scrape, run_index needs to be provided.
+            # Using 0 for a direct test call.
+            perform_scrape(url=test_url, scrape_type="test_manual_trigger", run_index=0) 
             print("Manual trigger test complete.")
 
         # To test the actual scheduler loop, you would run this:
