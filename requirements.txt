@@ -9,5 +9,12 @@ beautifulsoup4
 
 # Utility packages
 python-dateutil
-uuid
+
+# These are part of the Python standard library and do NOT need to be listed:
+# os, time, datetime, json, random, string, traceback, uuid
+
+# Additional dependencies for Supabase
+postgrest
+
+# If you use any other packages not listed here, add them below.
 
