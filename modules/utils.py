@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 import random
 import string
-from modules.configmanager import get_or_assign_url_code
+from .configmanager import get_or_assign_url_code
 # Use relative import for logger if utils.py is considered part of the 'modules' package
 from .logger import debug, error as log_error, warning, regular
 
