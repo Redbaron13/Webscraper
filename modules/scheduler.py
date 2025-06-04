@@ -5,10 +5,10 @@
 import schedule
 import time
 import datetime
-from scraper import fetch_html
-from databasemanager import save_scrape_data, close_local_db_connection
-from configmanager import get_config
-from logger import regular, maintenance, debug, error as log_error, critical
+from .scraper import fetch_html # ADD A DOT HERE
+from .databasemanager import save_scrape_data, close_local_db_connection # ADD A DOT HERE
+from .configmanager import get_config # ADD A DOT HERE
+from .logger import regular, maintenance, debug, error as log_error, critical # ADD A DOT HERE
 
 # --- Global state for stopping the scheduler ---
 _stop_scheduler = False
