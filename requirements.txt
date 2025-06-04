@@ -6,6 +6,8 @@ requests-html
 schedule
 click
 beautifulsoup4
+chromium
+
 
 # Utility packages
 python-dateutil
