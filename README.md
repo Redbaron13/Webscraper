@@ -1,4 +1,4 @@
-# Web Scraper and Archiver for NJ Courts Website
+ff# Web Scraper and Archiver for NJ Courts Website
 
 This script is designed to scrape specified pages from the New Jersey courts website (njcourts.gov) and other target URLs. It runs multiple times a day (configurable), storing a full HTML copy of each page. This allows for historical tracking of website content, which is particularly useful as sites update frequently and may not offer a public API for accessing historical data.
 
@@ -79,14 +79,14 @@ This will guide you through essential configurations, initialize the local SQLit
 
 The script uses a `.env` file to manage configuration settings:
 
-*   `SUPABASE_URL`: Your Supabase project URL (e.g., `https://yourprojectid.supabase.co`). Leave empty if not using Supabase.
-*   `SUPABASE_KEY`: Your Supabase project anon (public) key. Leave empty if not using Supabase.
-*   `TARGET_URLS`: A comma-separated list of exact URLs to scrape (e.g., `https://site1.com/page,https://site2.com/another`).
-*   `SCRAPE_TIMES_PRIMARY`: Comma-separated list of primary scrape times in HH:MM format (24-hour clock, e.g., `08:00,17:00`).
-*   `SCRAPE_TIMES_BACKUP`: Comma-separated list of backup scrape times in HH:MM format (e.g., `22:00,05:00`).
-*   `LOCAL_DB_PATH`: Path for the local SQLite database file. Defaults to `webscraperdata.db` in the project root if not specified.
-*   `LOG_LEVEL`: Sets the application's logging verbosity. While this can be set manually (e.g., `REGULAR`, `MAINTENANCE`, `DEBUG`), it's primarily managed by the `set-feedback-mode` CLI command.
-*   `URL_CODES`: Stores URL-to-code mappings as a JSON string (e.g., `URL_CODES='{"https://example.com/pageA":"XA", "https://example.net/data":"XB"}'`). This is largely auto-managed by the application. You can pre-fill it if you have existing codes or want to assign specific ones, but ensure codes are unique two-letter uppercase strings.
+*   `SUPABASE_URL`= Your Supabase project URL (e.g., `https://yourprojectid.supabase.co`). Leave empty if not using Supabase.
+*   `SUPABASE_KEY`= Your Supabase project anon (public) key. Leave empty if not using Supabase.
+*   `TARGET_URLS`= A comma-separated list of exact URLs to scrape (e.g., `https://site1.com/page,https://site2.com/another`).
+*   `SCRAPE_TIMES_PRIMARY`= Comma-separated list of primary scrape times in HH:MM format (24-hour clock, e.g., `08:00,17:00`).
+*   `SCRAPE_TIMES_BACKUP`= Comma-separated list of backup scrape times in HH:MM format (e.g., `22:00,05:00`).
+*   `LOCAL_DB_PATH`= Path for the local SQLite database file. Defaults to `data/webscraperdata.db` in the project root if not specified.
+*   `LOG_LEVEL`= Sets the application's logging verbosity. While this can be set manually (e.g., `REGULAR`, `MAINTENANCE`, `DEBUG`), it's primarily managed by the `set-feedback-mode` CLI command.
+*   `URL_CODES`= Stores URL-to-code mappings as a JSON string (e.g., `URL_CODES='{"https://example.com/pageA":"XA", "https://example.net/data":"XB"}'`). This is largely auto-managed by the application. You can pre-fill it if you have existing codes or want to assign specific ones, but ensure codes are unique two-letter uppercase strings.
 *   `LAST_MANUAL_PREFIX`: Stores the last prefix used for a manual scrape ('T' or 'M'). This allows manual scrapes to alternate UUID prefixes. Defaults to 'M', so the first manual scrape will use 'T'. Managed automatically by the `manual-scrape` command.
 
 ## Usage (CLI Commands)
