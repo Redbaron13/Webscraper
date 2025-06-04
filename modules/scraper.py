@@ -1,12 +1,14 @@
-import requests_html.requests
+import requests # To get requests.exceptions like requests.exceptions.Timeout, requests.exceptions.HTTPError
 from requests_html import HTMLSession
-from logger import debug, error as log_error
+from .logger import debug, error as log_error # Relative import for logger
+from .configmanager import get_config # Relative import for configmanager
 
-# Constants for timeouts
+# Constants for timeouts (RENDER_TIMEOUT will now be fetched from config)
 REQUEST_TIMEOUT = 30  # For the overall HTTP GET request
 RENDER_SLEEP = 3      # Time in seconds to wait for JavaScript to load after page fetch but before JS execution
-RENDER_TIMEOUT = 40   # Maximum time in seconds for the response.html.render() call
 
+# The RENDER_TIMEOUT constant is commented out here as it's fetched from config now.
+# RENDER_TIMEOUT = 40 # This will now be fetched from config
 def fetch_html(url: str, attempt_js_render: bool = True) -> str | None:
     """
     Fetches HTML content from a given URL.
