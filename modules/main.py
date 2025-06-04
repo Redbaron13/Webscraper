@@ -1,7 +1,7 @@
 import click
 import os
 import time
-from configmanager import (
+from .configmanager import ( # ADD A DOT HERE
     get_config,
     save_config_value,
     load_config,
@@ -11,12 +11,13 @@ from configmanager import (
     DEFAULT_LOG_LEVEL_STR,
     parse_times, # Added parse_times here
 )
-from databasemanager import initialize_databases, save_scrape_data, close_local_db_connection
-from scraper import fetch_html
-from scheduler import setup_schedules, run_pending_schedules, stop_scheduler_flag
-from logger import regular, maintenance, debug, error as log_error, set_log_level as set_global_log_level, LOG_LEVELS
+from .databasemanager import initialize_databases, save_scrape_data, close_local_db_connection # ADD A DOT HERE
+from .scraper import fetch_html # ADD A DOT HERE
+from .scheduler import setup_schedules, run_pending_schedules, stop_scheduler_flag # ADD A DOT HERE
+from .logger import regular, maintenance, debug, error as log_error, set_log_level as set_global_log_level, LOG_LEVELS # ADD A DOT HERE
 # from utils import parse_times # Removed from here
-from .diagnostics import run_all_diagnostics # Added for diagnostics command
+from .diagnostics import run_all_diagnostics # This one is already correct
+
 
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
