@@ -71,7 +71,7 @@ Open the `.env` file in a text editor and fill in your details. See the "Configu
 ### 6. Initialize the Application (First-Time Setup)
 Run the interactive setup command:
 ```bash
-python modules/main.py setup
+python main.py setup
 ```
 This will guide you through essential configurations, initialize the local SQLite database (creating tables), and verify Supabase connection if configured.
 
@@ -91,7 +91,7 @@ The script uses a `.env` file to manage configuration settings:
 
 ## Usage (CLI Commands)
 
-All commands are run via `python modules/main.py <command> [options]`.
+All commands are run via `python main.py <command> [options]`.
 
 *   **`setup`**:
     *   Guides you through an interactive setup of essential configurations (Supabase credentials, target URLs, scrape times, log level).
