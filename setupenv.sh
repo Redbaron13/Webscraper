@@ -5,6 +5,7 @@ export PIP_BREAK_SYSTEM_PACKAGES=1
 # Install Chromium browser (NOTE: This may still time out in an unstable environment)
 sudo apt-get update -y
 sudo apt-get install -y chromium-browser
+sudo apt-get install sqlite3
 
 # Create the .env file with correct key=value format and proper quoting
 cat <<EOF > /app/.env
