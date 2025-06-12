@@ -1,0 +1,28 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [ main ] # Adjust if your main branch has a different name like master
+  pull_request:
+    branches: [ main ] # Adjust if your main branch has a different name
+
+jobs:
+  test_environment_setup:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.x' # Specify a version if needed, e.g., 3.9
+
+    - name: Make test script executable
+      run: chmod +x tests/test_setupenv.sh
+
+    - name: Run environment setup test script
+      run: ./tests/test_setupenv.sh
+      # The test script itself runs setupenv.sh which installs dependencies
+      # and performs checks. The working directory for the script will be the repo root.
