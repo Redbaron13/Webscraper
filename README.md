@@ -180,16 +180,101 @@ If you are using Supabase for remote storage, you need to manually create the `s
 
 ## License
 
-This project is licensed under the MIT License. (If a `LICENSE` file exists, refer to it. Otherwise, choose and add an appropriate license file.)The `README.md` file has been overwritten with the new comprehensive content.
+This project is licensed under the MIT License. See the `LICENSE` file for details.
 
-This includes:
-1.  **Overview/Introduction**: Purpose re-stated.
-2.  **Features**: Updated with all new functionalities including custom UUIDs, identical content detection, new CLI commands, T/M prefix alternation, persistent URL-to-Code mapping, and DB sequential counters.
-3.  **Setup and Installation**: Reviewed and confirmed accuracy.
-4.  **Configuration (`.env` file)**: Added comprehensive details for all environment variables: `SUPABASE_URL`, `SUPABASE_KEY`, `TARGET_URLS`, `SCRAPE_TIMES_PRIMARY`, `SCRAPE_TIMES_BACKUP`, `LOCAL_DB_PATH`, `LOG_LEVEL` (and its relation to `set-feedback-mode`), `URL_CODES` (JSON string, auto-managed), and `LAST_MANUAL_PREFIX`.
-5.  **Usage (CLI Commands)**: Documented all CLI commands: `setup`, `show-config`, `manual-scrape` (with new UUID details), `run`, `init-db`, `set-feedback-mode` (with explanations of modes), `update-scrape-times`, and `run-diagnostics`.
-6.  **UUID Structure**: Provided a detailed breakdown of the custom UUID format (`[Prefix][RunNum][URLCode][Timestamp][Random][SeqCounter]`) and each component.
-7.  **Database Schema**: Described the `scraped_pages` (including `identical_match`) and `sequential_counters` tables. Added a note for Supabase users regarding manual table creation.
-8.  **License**: A placeholder for the MIT License was included.
+## Background Running (Windows)
 
-The README should now accurately reflect the current state and capabilities of the application.
+To run the web scraper continuously or on a schedule in the background on Windows, here are a couple of recommended methods:
+
+### 1. Using Windows Task Scheduler (Recommended for most users)
+
+Windows Task Scheduler allows you to automate the execution of scripts at specific times or system events (like startup).
+
+**Steps:**
+
+1.  **Prepare your script:**
+    *   Ensure your Python environment is set up correctly and you can run the scraper manually (e.g., `python main.py run`).
+    *   Make a note of the full path to your Python executable (e.g., `C:\Users\YourUser\venv\Scripts\python.exe` if using a virtual environment, or your system's Python path).
+    *   Make a note of the full path to the `main.py` script in your project directory (e.g., `C:\Path\To\YourProject\main.py`).
+    *   Decide on the arguments you want to use (e.g., `run` for indefinite scheduling, or `run --duration-days 30` for a limited time).
+
+2.  **Open Task Scheduler:**
+    *   Search for "Task Scheduler" in the Windows Start Menu and open it.
+
+3.  **Create a Basic Task (or a regular Task for more options):**
+    *   In the right-hand pane, click "Create Basic Task..." (or "Create Task..." for more control).
+    *   **Name & Description:** Give your task a recognizable name (e.g., "WebScraperScheduler") and an optional description. Click Next.
+    *   **Trigger:** Choose how often you want the task to run.
+        *   For continuous running (restarting when the system boots), you might choose "When the computer starts".
+        *   For daily runs at specific times, choose "Daily" and set the time.
+        *   If the script's internal scheduler is preferred for timing, you might set it to run "When the computer starts" and let the Python script handle the specific scrape times. Click Next.
+    *   **Action:** Select "Start a program". Click Next.
+    *   **Start a Program:**
+        *   **Program/script:** Enter the full path to your Python executable (e.g., `C:\Users\YourUser\venv\Scripts\python.exe`).
+        *   **Add arguments (optional):** Enter the full path to your `main.py` script followed by the command. For example: `C:\Path\To\YourProject\main.py run`
+        *   **Start in (optional):** Enter the full path to your project directory (the directory containing `main.py`). This ensures the script runs with the correct working directory, which is important for finding `.env` files, local databases, etc. For example: `C:\Path\To\YourProject\`
+    *   Click Next.
+    *   **Finish:** Review the settings and click "Finish".
+
+4.  **Configure Advanced Settings (Optional but Recommended):**
+    *   Find your newly created task in the Task Scheduler Library. Right-click it and select "Properties".
+    *   **General Tab:**
+        *   Consider selecting "Run whether user is logged on or not". You may need to enter your user credentials for this.
+        *   Check "Run with highest privileges" if your script might need it (usually not necessary for this scraper unless writing to restricted locations).
+    *   **Conditions Tab:**
+        *   You might want to uncheck "Start the task only if the computer is on AC power" if running on a laptop.
+    *   **Settings Tab:**
+        *   "Allow task to be run on demand" is useful for testing.
+        *   "Run task as soon as possible after a scheduled start is missed" can be helpful.
+        *   "If the task fails, restart every:" can be configured (e.g., restart every 10 minutes, attempt 3 times). This provides some resilience.
+        *   "Stop the task if it runs longer than:" - be cautious with this. If your `run` command is meant to run indefinitely, don't set this too short. You might set it to "1 day" and have the trigger run it daily if you want daily restarts.
+    *   Click OK to save changes.
+
+5.  **Testing:**
+    *   You can manually run the task from Task Scheduler (right-click -> Run) to test it.
+    *   Check your script's log files (as configured in `logger.py`) to ensure it's running and performing scrapes as expected.
+
+### 2. Using NSSM (Non-Sucking Service Manager) (More Robust for "Always-On")
+
+NSSM is a free utility that allows you to run any application as a Windows service. This is ideal if you want the scraper to run continuously in the background and automatically restart if it crashes.
+
+**Steps:**
+
+1.  **Download NSSM:**
+    *   Go to the NSSM website (`https://nssm.cc/download`) and download the latest release.
+    *   Extract `nssm.exe` (choose 32-bit or 64-bit based on your system) to a directory where you can easily access it (e.g., `C:\NSSM`). Ensure this directory is in your system's PATH or run `nssm.exe` using its full path.
+
+2.  **Install the Service:**
+    *   Open Command Prompt or PowerShell **as Administrator**.
+    *   Navigate to the directory where you saved `nssm.exe` (if not in PATH).
+    *   Run the command: `nssm.exe install WebScraperService` (you can choose any service name).
+    *   This will open the NSSM GUI configurator.
+    *   **Application Tab:**
+        *   **Path:** Full path to your Python executable (e.g., `C:\Users\YourUser\venv\Scripts\python.exe`).
+        *   **Startup directory:** Full path to your project directory (containing `main.py`).
+        *   **Arguments:** Full path to your `main.py` script followed by the command (e.g., `C:\Path\To\YourProject\main.py run`).
+    *   **Details Tab (Optional):**
+        *   Set a Display name and Description for your service.
+    *   **I/O Tab (Important for Logging):**
+        *   If your script's own logging is not sufficient or you want to capture all stdout/stderr from the Python process itself, configure redirection here. For example:
+            *   Output (stdout): `C:\Path\To\YourProject\logs\nssm_stdout.log`
+            *   Error (stderr): `C:\Path\To\YourProject\logs\nssm_stderr.log`
+            *(Ensure the `logs` directory exists.)*
+    *   **Restart Tab:**
+        *   Configure application restart options (e.g., restart delays, number of retries). NSSM's default restart behavior is usually quite good.
+    *   Click "Install service".
+
+3.  **Start the Service:**
+    *   You can start the service from the Services management console (`services.msc`) or using NSSM:
+        `nssm.exe start WebScraperService`
+
+4.  **Manage the Service:**
+    *   Use `nssm.exe stop WebScraperService`, `nssm.exe restart WebScraperService`, `nssm.exe status WebScraperService`.
+    *   To edit the service configuration: `nssm.exe edit WebScraperService`
+    *   To remove the service: `nssm.exe remove WebScraperService` (confirm in the GUI).
+
+**Choosing a Method:**
+*   If you prefer using built-in Windows tools and have straightforward scheduling needs, **Task Scheduler** is a good choice.
+*   If you need the script to run robustly as a background service with automatic restarts and more control over service behavior, **NSSM** is highly recommended.
+
+Remember to check the script's own log files (e.g., in `logs/scraper.log` or as configured) for operational details and any errors, regardless of the method chosen.

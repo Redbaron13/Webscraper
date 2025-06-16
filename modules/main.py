@@ -48,19 +48,19 @@ def setup():
 
     current_primary_times = ",".join(get_config().get("SCRAPE_TIMES_PRIMARY", parse_times(DEFAULT_PRIMARY_TIMES_STR)))
     primary_times_str = click.prompt('Primary Scrape Times (HH:MM, comma-separated)', default=current_primary_times)
-    if not parse_times(primary_times_str): # Validate input
+    if primary_times_str and not parse_times(primary_times_str): # Validate input only if non-empty
         log_error("Invalid primary time format. Please use HH:MM, comma-separated.")
         primary_times_str = click.prompt('Re-enter Primary Scrape Times (HH:MM, comma-separated)', default=DEFAULT_PRIMARY_TIMES_STR)
     save_config_value("SCRAPE_TIMES_PRIMARY", primary_times_str)
 
     current_backup_times = ",".join(get_config().get("SCRAPE_TIMES_BACKUP", parse_times(DEFAULT_BACKUP_TIMES_STR)))
     backup_times_str = click.prompt('Backup Scrape Times (HH:MM, comma-separated)', default=current_backup_times)
-    if not parse_times(backup_times_str): # Validate input
+    if backup_times_str and not parse_times(backup_times_str): # Validate input only if non-empty
         log_error("Invalid backup time format. Please use HH:MM, comma-separated.")
         backup_times_str = click.prompt('Re-enter Backup Scrape Times (HH:MM, comma-separated)', default=DEFAULT_BACKUP_TIMES_STR)
     save_config_value("SCRAPE_TIMES_BACKUP", backup_times_str)
     
-    current_log_level = get_config().get("LOG_LEVEL", DEFAULT_LOG_LEVEL)
+    current_log_level = get_config().get("LOG_LEVEL", DEFAULT_LOG_LEVEL_STR) # Corrected typo DEFAULT_LOG_LEVEL to DEFAULT_LOG_LEVEL_STR
     log_level_str = click.prompt('Log Level', type=click.Choice(list(LOG_LEVELS.keys()), case_sensitive=False), default=current_log_level)
     save_config_value("LOG_LEVEL", log_level_str)
     set_global_log_level(log_level_str) # Apply immediately
@@ -108,8 +108,8 @@ def manual_scrape(url: str, scrape_type: str):
 
     # Initialize DBs in case they haven't been, or if schema changed
     # It's good practice to ensure tables exist before trying to write.
-    if click.confirm("Ensure database tables are initialized before scraping?", default=False):
-        initialize_databases()
+    # if click.confirm("Ensure database tables are initialized before scraping?", default=False):
+    #     initialize_databases()
 
     html_content = fetch_html(url)
     if html_content:

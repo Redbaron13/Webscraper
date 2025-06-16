@@ -6,6 +6,7 @@ from .configmanager import get_config # Relative import for configmanager
 # Constants for timeouts (RENDER_TIMEOUT will now be fetched from config)
 REQUEST_TIMEOUT = 30  # For the overall HTTP GET request
 RENDER_SLEEP = 3      # Time in seconds to wait for JavaScript to load after page fetch but before JS execution
+RENDER_TIMEOUT = 40   # Default timeout for JavaScript rendering step
 
 # The RENDER_TIMEOUT constant is commented out here as it's fetched from config now.
 # RENDER_TIMEOUT = 40 # This will now be fetched from config
@@ -48,7 +49,7 @@ def fetch_html(url: str, attempt_js_render: bool = True) -> str | None:
                     debug(f"JavaScript rendering completed for {url}")
                 else:
                     log_error(f"Cannot render JavaScript for {url}: response.html is None. Static HTML will be used if available.")
-            except requests_html.requests.exceptions.Timeout:
+            except requests.exceptions.Timeout: # Corrected from requests_html.requests.exceptions.Timeout
                 log_error(f"JavaScript rendering timed out for {url} after {RENDER_TIMEOUT}s. Static HTML will be used if available.")
             except Exception as e:
                 log_error(f"An error occurred during JavaScript rendering for {url}. Static HTML will be used if available.", error_obj=e)
